@@ -6,7 +6,8 @@ email.
 Env vars required (set as GitHub Actions secrets, see README.md):
   GMAIL_USER        - your gmail address (used as the "from")
   GMAIL_APP_PASS    - a Gmail app password (not your normal password)
-  NOTIFY_EMAIL      - where to send the email digest
+  NOTIFY_EMAIL      - where to send the email digest (comma-separated for
+                      multiple recipients)
 """
 
 import json
@@ -61,20 +62,24 @@ def format_listing(item):
     )
 
 
-def send_email(subject, body, to_addr, gmail_user, gmail_pass):
+def parse_recipients(raw):
+    return [addr.strip() for addr in raw.split(",") if addr.strip()]
+
+
+def send_email(subject, body, to_addrs, gmail_user, gmail_pass):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = gmail_user
-    msg["To"] = to_addr
+    msg["To"] = ", ".join(to_addrs)
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
         server.login(gmail_user, gmail_pass)
-        server.sendmail(gmail_user, [to_addr], msg.as_string())
+        server.sendmail(gmail_user, to_addrs, msg.as_string())
 
 
 def main():
     gmail_user = os.environ["GMAIL_USER"]
     gmail_pass = os.environ["GMAIL_APP_PWD"]
-    notify_email = os.environ["NOTIFY_EMAIL"]
+    notify_emails = parse_recipients(os.environ["NOTIFY_EMAIL"])
 
     listings = fetch_listings()
     last_seen_ts = load_last_seen()
@@ -98,11 +103,11 @@ def main():
     send_email(
         subject=subject,
         body=body,
-        to_addr=notify_email,
+        to_addrs=notify_emails,
         gmail_user=gmail_user,
         gmail_pass=gmail_pass,
     )
-    print(f"Emailed {len(new_items)} new postings to {notify_email}")
+    print(f"Emailed {len(new_items)} new postings to {', '.join(notify_emails)}")
 
     save_last_seen(newest_ts)
 

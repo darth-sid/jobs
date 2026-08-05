@@ -12,6 +12,7 @@ Env vars required (set as GitHub Actions secrets, see README.md):
 
 import json
 import os
+import re
 import smtplib
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
@@ -23,6 +24,20 @@ LISTINGS_URL = (
     "dev/.github/scripts/listings.json"
 )
 STATE_FILE = Path(__file__).parent / "last_seen.json"
+
+# Roles listing any UK location (e.g. "London, UK", "Remote in UK") are
+# excluded, as are roles whose title carries a level suffix like "II"/"III"
+# (usually not actually entry-level).
+UK_LOCATION_RE = re.compile(r"\buk\b|united kingdom", re.IGNORECASE)
+SENIOR_LEVEL_RE = re.compile(r"\b(II|III)\b")
+
+
+def is_uk_role(item):
+    return any(UK_LOCATION_RE.search(loc) for loc in item.get("locations", []))
+
+
+def is_senior_level(item):
+    return bool(SENIOR_LEVEL_RE.search(item.get("title", "")))
 
 
 def fetch_listings():
@@ -87,7 +102,10 @@ def main():
     new_items = [
         item
         for item in listings
-        if item.get("active") and item.get("date_posted", 0) > last_seen_ts
+        if item.get("active")
+        and item.get("date_posted", 0) > last_seen_ts
+        and not is_uk_role(item)
+        and not is_senior_level(item)
     ]
 
     if not new_items:

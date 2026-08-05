@@ -1,0 +1,35 @@
+name: Check new grad postings
+
+on:
+  schedule:
+    # 8:00 AM PT daily = 15:00 UTC (adjust for DST if you care)
+    - cron: "0 15 * * *"
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run bot
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: python bot.py
+
+      - name: Commit updated last_seen.json
+        run: |
+          git config user.name "newgrad-bot"
+          git config user.email "actions@github.com"
+          git add last_seen.json
+          git diff --staged --quiet || git commit -m "Update last seen timestamp"
+          git push
